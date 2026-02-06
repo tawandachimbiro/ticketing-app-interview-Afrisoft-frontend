@@ -1,22 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Input from '../common/Input';
 import Button from '../common/Button';
+import PaymentMethodCard from '../common/PaymentMethodCard';
 import { PAYMENT_METHODS } from '../../utils/constants';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, calculateTotal } from '../../utils/helpers';
 import { ticketsApi } from '../../api/ticketsApi';
 import { toast } from 'react-toastify';
-import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 
 const TicketPurchaseForm = () => {
-  const { cart, clearCart, getTotal } = useCart();
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  
+  // Load cart directly from localStorage
+  const [cart, setCart] = useState({ event: null, tickets: [], customerInfo: null });
+  
+  useEffect(() => {
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (error) {
+        console.error('Error loading cart:', error);
+      }
+    }
+  }, []);
+
+  const clearCart = () => {
+    localStorage.removeItem('cart');
+    setCart({ event: null, tickets: [], customerInfo: null });
+  };
+
+  const getTotal = () => calculateTotal(cart.tickets);
 
   const [formData, setFormData] = useState({
-    customerName: isAuthenticated ? `${user?.firstName} ${user?.lastName}` : '',
-    customerEmail: isAuthenticated ? user?.email : '',
+    customerName: isAuthenticated ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : '',
+    customerEmail: isAuthenticated ? user?.email || '' : '',
     mobileNumber: isAuthenticated ? user?.phoneNumber || '' : '',
     paymentMethod: PAYMENT_METHODS.ECOCASH,
   });
@@ -54,6 +74,13 @@ const TicketPurchaseForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Guard against empty cart
+    if (!cart.event || !cart.tickets || cart.tickets.length === 0) {
+      toast.error('Your cart is empty. Please select tickets first.');
+      navigate('/events');
+      return;
+    }
+    
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -78,12 +105,15 @@ const TicketPurchaseForm = () => {
       const response = await ticketsApi.purchaseTicket(purchaseData);
       
       if (response.success) {
-        toast.success(response.message);
+        toast.success(response.message || 'Tickets purchased successfully! Check your email.');
         clearCart();
         navigate('/my-tickets');
+      } else {
+        toast.error(response.message || 'Purchase failed. Please try again.');
       }
     } catch (error) {
-      toast.error(error.message || 'Purchase failed. Please try again.');
+      console.error('Purchase error:', error);
+      toast.error(error.response?.data?.message || error.message || 'Purchase failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -131,26 +161,22 @@ const TicketPurchaseForm = () => {
 
       {/* Payment Method */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-xl font-bold text-dark mb-4">Payment Method</h3>
+        <h3 className="text-xl font-bold text-dark mb-4">
+          💳 Select Payment Method
+        </h3>
+        <p className="text-sm text-gray-500 mb-6">
+          Choose your preferred payment method. All payments are 100% secure.
+        </p>
         
         <div className="space-y-3">
           {Object.entries(PAYMENT_METHODS).map(([key, value]) => (
-            <label key={value} className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:border-primary-blue transition-colors">
-              <input
-                type="radio"
-                name="paymentMethod"
-                value={value}
-                checked={formData.paymentMethod === value}
-                onChange={handleChange}
-                className="mr-3"
-              />
-              <div>
-                <p className="font-semibold text-dark">{key.replace('_', ' ')}</p>
-                <p className="text-sm text-gray-500">
-                  {value.includes('CARD') ? 'Card Payment' : 'Mobile Money'}
-                </p>
-              </div>
-            </label>
+            <PaymentMethodCard
+              key={value}
+              method={key}
+              value={value}
+              selected={formData.paymentMethod === value}
+              onChange={handleChange}
+            />
           ))}
         </div>
       </div>
@@ -160,7 +186,7 @@ const TicketPurchaseForm = () => {
         <h3 className="text-xl font-bold mb-4">Order Summary</h3>
         
         <div className="space-y-2 mb-4">
-          {cart.tickets.map((ticket) => (
+          {cart.tickets && cart.tickets.map((ticket) => (
             <div key={ticket.category} className="flex justify-between">
               <span>{ticket.category} x {ticket.quantity}</span>
               <span>{formatCurrency(ticket.price * ticket.quantity)}</span>
@@ -186,9 +212,22 @@ const TicketPurchaseForm = () => {
         {loading ? 'Processing...' : `Pay ${formatCurrency(total)}`}
       </Button>
 
-      <p className="text-center text-sm text-gray-500">
-        By completing this purchase, you agree to our terms and conditions. 
-        A confirmation email will be sent to your email address.
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <svg className="w-5 h-5 text-primary-blue" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+          </svg>
+          <p className="font-semibold text-primary-blue">Email Confirmation</p>
+        </div>
+        <p className="text-sm text-gray-600">
+          After successful payment, you'll receive an email with your ticket QR codes.
+          Keep them safe for event entry!
+        </p>
+      </div>
+      
+      <p className="text-center text-xs text-gray-400">
+        By completing this purchase, you agree to our terms and conditions.
       </p>
     </form>
   );

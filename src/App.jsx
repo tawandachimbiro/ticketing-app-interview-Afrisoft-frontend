@@ -43,15 +43,13 @@ function App() {
                 <Route path={ROUTES.LOGIN} element={<LoginPage />} />
                 <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
 
-                {/* Protected Routes */}
+                {/* Checkout - No login required (Guest Checkout) */}
                 <Route 
                   path={ROUTES.PURCHASE_TICKET} 
-                  element={
-                    <ProtectedRoute>
-                      <PurchaseTicketPage />
-                    </ProtectedRoute>
-                  } 
+                  element={<PurchaseTicketPage />} 
                 />
+
+                {/* Protected Routes */}
                 <Route 
                   path={ROUTES.MY_TICKETS} 
                   element={

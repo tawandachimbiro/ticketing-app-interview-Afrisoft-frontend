@@ -12,7 +12,7 @@ import { toast } from 'react-toastify';
 const EventDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { setEvent, addTicket, updateTicketQuantity, cart, setCustomerInfo } = useCart();
+  const { cart, clearCart } = useCart();
   
   const [event, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +27,6 @@ const EventDetailsPage = () => {
     try {
       const data = await eventsApi.getEventById(id);
       setEventData(data);
-      setEvent(data);
     } catch (error) {
       console.error('Error fetching event:', error);
       toast.error('Failed to load event details');
@@ -47,20 +46,37 @@ const EventDetailsPage = () => {
   };
 
   const handleProceedToCheckout = () => {
-    // Add selected tickets to cart
-    Object.keys(selectedTickets).forEach(category => {
-      const quantity = selectedTickets[category];
-      if (quantity > 0) {
-        const ticketType = event.ticketTypes.find(t => t.category === category);
-        updateTicketQuantity(category, quantity);
-      }
-    });
-
-    if (Object.values(selectedTickets).some(qty => qty > 0)) {
-      navigate('/checkout');
-    } else {
+    // Check if any tickets are selected
+    const hasSelectedTickets = Object.values(selectedTickets).some(qty => qty > 0);
+    
+    if (!hasSelectedTickets) {
       toast.warning('Please select at least one ticket');
+      return;
     }
+
+    // Prepare tickets for cart
+    const ticketsToAdd = Object.keys(selectedTickets)
+      .filter(category => selectedTickets[category] > 0)
+      .map(category => {
+        const ticketType = event.ticketTypes.find(t => t.category === category);
+        return {
+          category: ticketType.category,
+          price: ticketType.price,
+          quantity: selectedTickets[category],
+        };
+      });
+
+    // Save cart to localStorage directly (bypass context state issues)
+    const cartData = {
+      event: event,
+      tickets: ticketsToAdd,
+      customerInfo: null,
+    };
+    
+    localStorage.setItem('cart', JSON.stringify(cartData));
+
+    // Navigate to checkout - the page will load cart from localStorage
+    navigate('/checkout');
   };
 
   const getTotalPrice = () => {

@@ -91,8 +91,3 @@ export const truncateText = (text, maxLength = 100) => {
 export const generateTicketId = () => {
   return 'TKT' + Date.now() + Math.random().toString(36).substring(2, 9).toUpperCase();
 };
-
-export const simulatePaymentSuccess = () => {
-  // 1 out of 5 payments succeed (20% success rate)
-  return Math.random() < 0.2;
-};

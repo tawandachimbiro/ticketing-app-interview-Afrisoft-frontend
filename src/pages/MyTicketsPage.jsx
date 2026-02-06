@@ -1,22 +1,56 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import TicketCard from '../components/tickets/TicketCard';
 import Loader from '../components/common/Loader';
-
-// MOCK DATA - In real app, fetch from API
-const mockTickets = [];
+import { ticketsApi } from '../api/ticketsApi';
+import { useAuth } from '../context/AuthContext';
 
 const MyTicketsPage = () => {
-  const [tickets] = useState(mockTickets);
+  const [tickets, setTickets] = useState([]);
   const [filter, setFilter] = useState('all'); // all, upcoming, past
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const navigate = useNavigate();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const fetchTickets = async () => {
+      try {
+        const data = await ticketsApi.getMyTickets();
+        setTickets(data);
+      } catch (error) {
+        console.error('Failed to load tickets', error);
+        toast.error('Failed to load your tickets. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTickets();
+  }, [authLoading, isAuthenticated, navigate]);
 
   const filteredTickets = tickets.filter(ticket => {
     if (filter === 'all') return true;
+
+    // Use eventDateTime from API response for upcoming/past filters
+    if (!ticket.eventDateTime) return true;
+
+    const eventDate = new Date(ticket.eventDateTime);
+    const now = new Date();
+
     if (filter === 'upcoming') {
-      return new Date(ticket.event.dateTime) > new Date();
+      return eventDate > now;
     }
     if (filter === 'past') {
-      return new Date(ticket.event.dateTime) <= new Date();
+      return eventDate <= now;
     }
     return true;
   });
@@ -26,12 +60,12 @@ const MyTicketsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold text-dark mb-8">My Tickets</h1>
+    <div className="min-h-screen bg-gray-50 py-6">
+      <div className="container mx-auto px-4 max-w-5xl">
+        <h1 className="text-3xl font-bold text-dark mb-6">My Tickets</h1>
 
         {/* Filter Tabs */}
-        <div className="flex space-x-4 mb-8 border-b border-gray-200">
+        <div className="flex space-x-4 mb-6 border-b border-gray-200">
           <button
             onClick={() => setFilter('all')}
             className={`pb-2 px-4 font-semibold transition-colors ${
@@ -66,7 +100,7 @@ const MyTicketsPage = () => {
 
         {/* Tickets List */}
         {filteredTickets.length > 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {filteredTickets.map((ticket) => (
               <TicketCard key={ticket.id} ticket={ticket} />
             ))}
